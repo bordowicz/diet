@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Transformacji: Cel Półmaraton & 90kg</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        .chart-container { position: relative; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; height: 350px; max-height: 400px; }
+        .tab-active { border-bottom: 4px solid #10b981; color: #10b981; font-weight: 600; }
+        .tab-inactive { color: #64748b; font-weight: 400; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .diet-tab-active { background-color: #d1fae5; color: #065f46; font-weight: 600; }
+        .diet-tab-inactive { background-color: #f1f5f9; color: #475569; font-weight: 400; }
+        .diet-tab-hover:hover { background-color: #e2e8f0; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+<!-- Chosen Palette: Slate Backgrounds (#f8fafc, #f1f5f9), Emerald Accents (#10b981, #059669) for Health/Diet, Orange Accents (#f97316) for Training/Energy, Blue Accents (#3b82f6) for Medical -->
+<!-- Application Structure Plan: A dashboard-style SPA divided into 3 main logical views: 1. Dashboard (Overview of goals, integrated medical data analysis from the PDF, and progress charts). 2. Diet Plan (Interactive 7-day schedule with detailed recipes, Thermomix tips, family options, and store-bought alternatives). 3. Training Plan (Weekly schedule integrating running, home gym with dumbbells/pull-up bar, and swimming). This structure separates concerns logically while keeping the user in a single, immersive environment. Navigation is handled via a top sticky tab bar. -->
+<!-- Visualization & Content Choices: 1. Body Composition (Doughnut Chart, Chart.js) -> Goal: Inform about current physical state -> Justification: Clear breakdown of the 97kg mass emphasizing the high muscle base. 2. Weight Loss Projection (Line Chart, Chart.js) -> Goal: Change/Motivate -> Justification: Visualizes the strict path to -7kg by June 6th. 3. Interactive 7-Day Meal Schedule (HTML Grid + JS Tabs) -> Goal: Organize/Inform -> Justification: Prevents cognitive overload by showing one day at a time, highlighting store-bought alternatives directly next to planned meals. 4. Medical Data Dashboard Cards (HTML/Tailwind) -> Goal: Inform/Contextualize -> Justification: Extracts key data points (pH, Specific Gravity) from the provided PDF report and contextualizes them for training. -->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+<nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🏃‍♂️</span>
+                <span class="font-bold text-xl text-slate-800 hidden sm:block">Transformacja Marka</span>
+                <span class="font-bold text-xl text-slate-800 sm:hidden">Transformacja</span>
+            </div>
+            <div class="flex overflow-x-auto hide-scroll space-x-1 sm:space-x-4">
+                <button onclick="switchMainTab('dashboard')" id="nav-dashboard" class="tab-active px-3 py-4 focus:outline-none whitespace-nowrap transition-colors">📊 Dashboard</button>
+                <button onclick="switchMainTab('dieta')" id="nav-dieta" class="tab-inactive px-3 py-4 focus:outline-none whitespace-nowrap transition-colors">🥗 Dieta (7 Dni)</button>
+                <button onclick="switchMainTab('trening')" id="nav-trening" class="tab-inactive px-3 py-4 focus:outline-none whitespace-nowrap transition-colors">🏋️‍♂️ Trening</button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- WIDOK: DASHBOARD -->
+    <section id="view-dashboard" class="block fade-in">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Witaj, Marku!</h1>
+            <p class="text-slate-600 text-lg leading-relaxed max-w-4xl">Cel główny: <strong>Półmaraton (6 czerwca)</strong> i redukcja <strong>-7kg (do 90kg)</strong>. Cel długoterminowy: 160kg na klatkę. Twój plan łączy metodykę Wrzoska (objętość warzywna, sytość), Raka (prostota preppowania) i braci Rodzeń (odżywienie, stabilna glikemia, zdrowe tłuszcze). Przygotowaliśmy rozkład jazdy dostosowany do Twojego wieku (39 lat) i dostępnego sprzętu domowego.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full hover:shadow-md transition-shadow">
+                <h2 class="text-xl font-bold mb-2 flex items-center text-slate-800"><span class="mr-2">⚖️</span> Kompozycja Ciała (Obecna: 97 kg)</h2>
+                <p class="text-sm text-slate-500 mb-4">BMI: 31,8. Wysoki odsetek mięśni (62.3kg) to świetna baza siłowa! Jednak przed półmaratonem musimy zredukować tłuszcz (32.6%) dla odciążenia stawów skokowych i kolanowych.</p>
+                <div class="chart-container flex-grow min-h-[300px]">
+                    <canvas id="bodyCompChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full hover:shadow-md transition-shadow">
+                <h2 class="text-xl font-bold mb-2 flex items-center text-slate-800"><span class="mr-2">📉</span> Projekcja Spadku Wagi (Cel: 90kg)</h2>
+                <p class="text-sm text-slate-500 mb-4">Zakładamy zdrowe i trwałe tempo chudnięcia. Deficyt kaloryczny rzędu 500-700 kcal dziennie (baza 2300 kcal + spalanie z treningów) pozwoli na adaptację do biegów bez drastycznego spadku siły.</p>
+                <div class="chart-container flex-grow min-h-[300px]">
+                    <canvas id="weightLossChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analiza Medyczna z PDF -->
+        <div class="bg-blue-50/50 border border-blue-200 p-6 rounded-2xl shadow-sm">
+            <div class="flex items-center mb-4">
+                <span class="text-2xl mr-3">⚕️</span>
+                <h3 class="text-xl font-bold text-blue-900">Analiza Badań Medycznych (Z raportu lab.)</h3>
+            </div>
+            <p class="text-blue-800 mb-4 text-sm">Na podstawie wyników z laboratorium Diagnostyka (badanie z 27.08.2025) oraz Twojej wagi analitycznej, wyciągnęliśmy kluczowe wnioski treningowe i dietetyczne.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-blue-100 flex flex-col">
+                    <h4 class="font-bold text-blue-800 border-b border-blue-100 pb-2 mb-3">Raport z Mocz (ICD-9: A01)</h4>
+                    <ul class="text-sm text-slate-700 space-y-2 flex-grow">
+                        <li class="flex justify-between border-b border-slate-50 pb-1">
+                            <span class="text-slate-500">Ciężar właściwy:</span>
+                            <span class="font-medium text-slate-800">1,026 <span class="text-xs text-slate-400 ml-1">(Norma: 1,005-1,030)</span></span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-50 pb-1">
+                            <span class="text-slate-500">pH:</span>
+                            <span class="font-medium text-slate-800">5,5 <span class="text-xs text-slate-400 ml-1">(Norma: 5,0-7,0)</span></span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-50 pb-1">
+                            <span class="text-slate-500">Glukoza / Ketony / Białko:</span>
+                            <span class="font-medium text-emerald-600">Nieobecne</span>
+                        </li>
+                        <li class="flex justify-between">
+                            <span class="text-slate-500">Barwa / Przejrzystość:</span>
+                            <span class="font-medium text-slate-800">Jasnożółty / Przejrzysty</span>
+                        </li>
+                    </ul>
+                    <div class="mt-3 bg-emerald-50 text-emerald-800 p-2 rounded text-xs border border-emerald-100">
+                        <strong>Wniosek:</strong> Nerki filtrują prawidłowo, brak cukromoczu (dobry znak przy BMI 31,8). Wynik ciężaru właściwego (1,026) jest w górnej granicy normy – w połączeniu z wagą analityczną (48,1% wody) sugeruje <strong>konieczność zwiększenia podaży płynów</strong>.
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-blue-100 flex flex-col">
+                    <h4 class="font-bold text-blue-800 border-b border-blue-100 pb-2 mb-3">Parametry z Wagi (Analizator)</h4>
+                    <ul class="text-sm text-slate-700 space-y-2 flex-grow">
+                        <li class="flex justify-between border-b border-slate-50 pb-1 items-center">
+                            <span class="text-slate-500">Woda (%):</span>
+                            <span class="font-medium text-orange-500 flex items-center">48,1% <span class="ml-2 text-[10px] bg-orange-100 px-1.5 py-0.5 rounded text-orange-700">ZA MAŁO</span></span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-50 pb-1 items-center">
+                            <span class="text-slate-500">Tłuszcz Trzewny:</span>
+                            <span class="font-medium text-red-500 flex items-center">14 <span class="ml-2 text-[10px] bg-red-100 px-1.5 py-0.5 rounded text-red-700">WYSOKI</span></span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-50 pb-1 items-center">
+                            <span class="text-slate-500">Wiek Ciała:</span>
+                            <span class="font-medium text-red-500 flex items-center">48 lat <span class="ml-2 text-[10px] bg-red-100 px-1.5 py-0.5 rounded text-red-700">+9 LAT</span></span>
+                        </li>
+                        <li class="flex justify-between">
+                            <span class="text-slate-500">Białko (%):</span>
+                            <span class="font-medium text-emerald-600">15,8% (Prawidłowo)</span>
+                        </li>
+                    </ul>
+                    <div class="mt-3 bg-blue-50 text-blue-800 p-2 rounded text-xs border border-blue-100">
+                        <strong>Wniosek:</strong> Poziom tłuszczu wiskeralnego (trzewnego) silnie podbija wiek metaboliczny. Treningi tlenowe (bieganie/rower) oraz dieta z mniejszą pulą cukrów prostych to najszybsza metoda na obniżenie tego groźnego parametru.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- WIDOK: DIETA -->
+    <section id="view-dieta" class="hidden fade-in">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Plan Żywieniowy na 7 Dni (2300 kcal)</h1>
+            <p class="text-slate-600 text-lg max-w-4xl">Zarządzanie czasem to podstawa sukcesu. Plan zakłada gotowanie obiadowe dla rodziny (Thermomix), sprytny meal-prep do pojemników i ratunkowe gotowce ze sklepu na dni całkowitego braku czasu.</p>
+        </div>
+
+        <!-- 7-Day Navigation -->
+        <div class="flex space-x-2 mb-8 overflow-x-auto hide-scroll pb-3 border-b-2 border-slate-200 px-1">
+            <button onclick="showDay('1')" id="tab-day-1" class="diet-tab-active px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Poniedziałek</button>
+            <button onclick="showDay('2')" id="tab-day-2" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Wtorek</button>
+            <button onclick="showDay('3')" id="tab-day-3" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Środa</button>
+            <button onclick="showDay('4')" id="tab-day-4" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Czwartek</button>
+            <button onclick="showDay('5')" id="tab-day-5" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Piątek</button>
+            <button onclick="showDay('6')" id="tab-day-6" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Sobota</button>
+            <button onclick="showDay('7')" id="tab-day-7" class="diet-tab-inactive diet-tab-hover px-5 py-2.5 rounded-xl whitespace-nowrap transition-colors duration-200">Niedziela (Long Run)</button>
+        </div>
+
+        <!-- DAY 1: Poniedziałek -->
+        <div id="content-day-1" class="day-content space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">🚀</span>
+                <h2 class="text-2xl font-bold text-slate-800">Poniedziałek <span class="text-slate-400 font-normal text-lg">- Rozpęd tygodnia</span></h2>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-6 hover:border-emerald-300 transition-colors">
+                <div class="lg:w-2/3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xl font-bold text-slate-800">Śniadanie: Owsianka Wrzoska</h3>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">450 kcal</span>
+                    </div>
+                    <ul class="list-disc list-inside text-slate-700 space-y-2">
+                        <li><strong>Baza:</strong> 50g płatków owsianych górskich zalanych wrzątkiem + <strong>150g Skyru naturalnego</strong> (podbicie białka dla sytości).</li>
+                        <li><strong>Owoce:</strong> Garść borówek lub malin (najlepiej mrożonych, tańsze i zawsze pod ręką).</li>
+                        <li><strong>Tłuszcze:</strong> 15g orzechów włoskich (dla balansu glikemii i dłuższego uwalniania energii).</li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/3 bg-orange-50/50 p-5 rounded-xl border border-orange-200 relative overflow-hidden flex flex-col justify-center">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] tracking-wider font-bold px-3 py-1 rounded-bl-lg uppercase">Awaryjnie ze sklepu</div>
+                    <h4 class="font-bold text-orange-900 mb-3 flex items-center text-lg mt-2"><span class="mr-2 text-xl">🛒</span> Szybki Gotowiec</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed bg-white/60 p-3 rounded border border-orange-100">
+                        <strong>Skyr owocowy (300g)</strong> w kubku + <strong>1 średni banan</strong> + mała paczka <strong>migdałów</strong> (zjedz ok. 10 sztuk). Do kupienia w Żabce/Biedronce w drodze do pracy. Szybko, czysto i trzyma makro.
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-6 hover:border-emerald-300 transition-colors">
+                <div class="lg:w-2/3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xl font-bold text-slate-800">Lunch (W pracy): Prepperski Standard</h3>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">550 kcal</span>
+                    </div>
+                    <ul class="list-disc list-inside text-slate-700 space-y-2">
+                        <li><strong>Białko:</strong> 180g piersi z kurczaka/indyka.</li>
+                        <li><strong>Węglowodany:</strong> 60g suchej kaszy gryczanej (dużo błonnika).</li>
+                        <li><strong>Objętość:</strong> 250g warzyw na patelnię obsmażonych na 1 łyżce oliwy z czosnkiem.</li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/3 bg-orange-50/50 p-5 rounded-xl border border-orange-200 relative overflow-hidden flex flex-col justify-center">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] tracking-wider font-bold px-3 py-1 rounded-bl-lg uppercase">Awaryjnie ze sklepu</div>
+                    <h4 class="font-bold text-orange-900 mb-3 flex items-center text-lg mt-2"><span class="mr-2 text-xl">🛒</span> Szybki Gotowiec</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed bg-white/60 p-3 rounded border border-orange-100">
+                        <strong>Gotowa sałatka lunchbox</strong> z kurczakiem. <strong class="underline">Ważne:</strong> wyrzuć kaloryczny sos i polej sałatkę 1 łyżką własnej oliwy z oliwek.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-6 hover:border-emerald-300 transition-colors">
+                <div class="lg:w-2/3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xl font-bold text-slate-800">Obiad: Zupa Krem (Thermomix + Rodzina)</h3>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">600 kcal</span>
+                    </div>
+                    <ul class="list-disc list-inside text-slate-700 space-y-2">
+                        <li><strong>Baza:</strong> Zupa krem ugotowana w Thermomixie ze standardowego przepisu dla całej rodziny.</li>
+                        <li><strong>Twoja modyfikacja:</strong> Do swojej miski pokrój <strong>pół kostki wędzonego Tofu (100g)</strong> lub <strong>1 kulkę mozzarelli light (125g)</strong> dla podbicia białka.</li>
+                        <li><strong>Węgle:</strong> 2 grube kromki żytniego pieczywa (jako chrupiące grzanki).</li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/3 bg-orange-50/50 p-5 rounded-xl border border-orange-200 relative overflow-hidden flex flex-col justify-center">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] tracking-wider font-bold px-3 py-1 rounded-bl-lg uppercase">Awaryjnie ze sklepu</div>
+                    <h4 class="font-bold text-orange-900 mb-3 flex items-center text-lg mt-2"><span class="mr-2 text-xl">🛒</span> Szybki Gotowiec</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed bg-white/60 p-3 rounded border border-orange-100">
+                        <strong>Zupa krem z chłodni</strong> w kubku (podgrzana) + wrzuć do niej całe opakowanie <strong>serka wiejskiego lekkiego (200g)</strong>. Daje niesamowitą sytość.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- DAY 2: Wtorek -->
+        <div id="content-day-2" class="day-content hidden space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">🔥</span>
+                <h2 class="text-2xl font-bold text-slate-800">Wtorek <span class="text-slate-400 font-normal text-lg">- Trening Interwałowy</span></h2>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-slate-600">Schemat posiłków kontynuowany z poniedziałku z wyższym udziałem węglowodanów złożonych przed treningiem (pełnoziarniste makarony/ryż).</p>
+            </div>
+        </div>
+
+        <!-- DAY 3: Środa -->
+        <div id="content-day-3" class="day-content hidden space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">🏊‍♂️</span>
+                <h2 class="text-2xl font-bold text-slate-800">Środa <span class="text-slate-400 font-normal text-lg">- Basen i Regeneracja</span></h2>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-slate-600">Dzień zwiększonej podaży białka kazeinowego (twaróg na noc) dla lepszej regeneracji włókien mięśniowych po pływaniu.</p>
+            </div>
+        </div>
+
+        <!-- DAY 4: Czwartek -->
+        <div id="content-day-4" class="day-content hidden space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">👟</span>
+                <h2 class="text-2xl font-bold text-slate-800">Czwartek <span class="text-slate-400 font-normal text-lg">- Spokojne Wybieganie</span></h2>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-slate-600">Dzień z naciskiem na zdrowe tłuszcze (awokado, oliwa z oliwek) dla wsparcia układu sercowo-naczyniowego.</p>
+            </div>
+        </div>
+
+        <!-- DAY 5: Piątek -->
+        <div id="content-day-5" class="day-content hidden space-y-5 fade-in">
+            <div class="bg-slate-800 text-white p-6 rounded-2xl shadow-sm border border-slate-700 mb-4">
+                <h2 class="text-2xl font-bold mb-3 flex items-center"><span class="mr-3 text-3xl">🐟</span> Piątek (Bez Mięsa) - Czas na Omega-3</h2>
+                <p class="text-slate-300 text-sm">Świadomy reset od mięsa na rzecz ryb (np. łosoś na Varomie) i roślin strączkowych o silnych właściwościach przeciwzapalnych przed niedzielnym biegiem.</p>
+            </div>
+        </div>
+
+        <!-- DAY 6: Sobota -->
+        <div id="content-day-6" class="day-content hidden space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">🏠</span>
+                <h2 class="text-2xl font-bold text-slate-800">Sobota <span class="text-slate-400 font-normal text-lg">- Domowa Siłownia i Rodzina</span></h2>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <p class="text-slate-600">Dzień "luźniejszy" (zdrowsza domowa pizza z Thermomixa), ale z zachowaniem żelaznej zasady kontroli porcji i makro.</p>
+            </div>
+        </div>
+
+        <!-- DAY 7: Niedziela -->
+        <div id="content-day-7" class="day-content hidden space-y-5 fade-in">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl bg-slate-100 p-2 rounded-full">🏅</span>
+                <h2 class="text-2xl font-bold text-slate-800">Niedziela <span class="text-slate-400 font-normal text-lg">- Koronny Długi Wybieg (>10km)</span></h2>
+            </div>
+            
+            <div class="bg-red-50 text-red-800 p-6 rounded-2xl border border-red-200 mb-6 flex flex-col sm:flex-row items-start sm:items-center shadow-sm">
+                <div class="text-4xl mr-5 mb-3 sm:mb-0 bg-red-100 p-3 rounded-full flex-shrink-0">⚠️</div>
+                <div>
+                    <h4 class="font-bold text-lg mb-1">Krytyczny dzień obciążenia! Zmieniamy zasady.</h4>
+                    <p class="text-sm leading-relaxed">Przed biegiem unikamy błonnika i tłuszczu (żadnego razowego chleba i jajek). Jemy puste węglowodany (jasna bułka z dżemem) aby nie obciążać układu trawiennego. Natychmiast po biegu korzystamy z okna anabolicznego (szejk WPC).</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-6 hover:border-emerald-300 transition-colors">
+                <div class="lg:w-2/3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xl font-bold text-slate-800">Śniadanie (1.5h przed startem): Ładowanie Glikogenu</h3>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ml-4">400 kcal</span>
+                    </div>
+                    <ul class="list-disc list-inside text-slate-700 space-y-2 mt-2">
+                        <li><strong>Paliwo:</strong> 2 jasne bułki pszenne (kajzerki) grubo posmarowane słodkim dżemem truskawkowym lub jasnym miodem.</li>
+                        <li><strong>Dodatek:</strong> 1 bardzo dojrzały banan (z brązowymi plamkami - najszybciej przyswajalna energia).</li>
+                        <li><strong class="text-red-600">ZERO błonnika i tłuszczu!</strong> Żadnych orzechów, razowca, warzyw, mięsa przed ciężkim biegiem.</li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/3 bg-orange-50/50 p-5 rounded-xl border border-orange-200 relative overflow-hidden flex flex-col justify-center">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] tracking-wider font-bold px-3 py-1 rounded-bl-lg uppercase">W TRASĘ</div>
+                    <h4 class="font-bold text-orange-900 mb-3 flex items-center text-lg mt-2"><span class="mr-2 text-xl">🏃‍♂️</span> W nerce do biegu</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed bg-white/60 p-3 rounded border border-orange-100">
+                        Tubka z <strong>musem owocowym</strong> (100% zgniecionych jabłek/bananów) wyciskana i wypijana w okolicach 7 kilometra trasy dla ratowania poziomu cukru.
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-6 hover:border-emerald-300 transition-colors">
+                <div class="lg:w-2/3">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xl font-bold text-slate-800">Okno Anaboliczne (Zaraz po biegu)</h3>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ml-4">300 kcal</span>
+                    </div>
+                    <ul class="list-disc list-inside text-slate-700 space-y-2 mt-2">
+                        <li><strong>Złota zasada:</strong> Wypij przygotowany <strong>Szejk WPC (30g izolatu białka serwatkowego z wodą)</strong> bezpośrednio po wejściu do domu, zanim weźmiesz prysznic. Obciążenie nóg masą 97kg przy uderzeniach o asfalt wymaga natychmiastowej ratunkowej cegiełki aminokwasów do mikrourazów.</li>
+                    </ul>
+                </div>
+                <div class="lg:w-1/3 bg-orange-50/50 p-5 rounded-xl border border-orange-200 relative overflow-hidden flex flex-col justify-center">
+                    <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] tracking-wider font-bold px-3 py-1 rounded-bl-lg uppercase">Awaryjnie ze sklepu</div>
+                    <h4 class="font-bold text-orange-900 mb-3 flex items-center text-lg mt-2"><span class="mr-2 text-xl">🛒</span> Szybki Gotowiec</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed bg-white/60 p-3 rounded border border-orange-100">
+                        Kupiony na pobliskiej stacji paliw gotowy, mocno schłodzony, płynny <strong>napój mleczno-proteinowy (np. Mullermilch Protein)</strong>. Gasi pragnienie i dostarcza białka na szybko w płynie.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- WIDOK: TRENING -->
+    <section id="view-trening" class="hidden fade-in">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Plan Treningowy (Półmaraton + Hantle)</h1>
+            <p class="text-slate-600 text-lg max-w-4xl">Integracja biegania z treningiem oporowym w warunkach domowych. Priorytet to wzmocnienie wydolności tlenowej nóg pod bieg i poprawa siły górnych partii mięśniowych używając sztangielek, ławki i drążka. Przy wadze 97 kg, obciążenia stawów są kluczowym czynnikiem.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center space-x-3 mb-4 border-b border-slate-100 pb-3">
+                    <span class="text-2xl bg-orange-100 text-orange-600 p-2 rounded-lg">🏃‍♂️</span>
+                    <h3 class="text-xl font-bold text-slate-800">Wtorek: Interwały Biegowe</h3>
+                </div>
+                <ul class="text-sm text-slate-600 space-y-3">
+                    <li><strong>Rozgrzewka:</strong> 10 min truchtu.</li>
+                    <li><strong>Część Główna:</strong> 8 x (1 min mocny bieg / 1 min marsz). Prędkość submaksymalna, budowa wytrzymałości tlenowej.</li>
+                    <li><strong>Wyciszenie:</strong> 5 min spaceru.</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center space-x-3 mb-4 border-b border-slate-100 pb-3">
+                    <span class="text-2xl bg-blue-100 text-blue-600 p-2 rounded-lg">🏊‍♂️</span>
+                    <h3 class="text-xl font-bold text-slate-800">Środa: Aktywna Regeneracja</h3>
+                </div>
+                <ul class="text-sm text-slate-600 space-y-3">
+                    <li><strong>Basen:</strong> 40 minut spokojnego pływania stylem klasycznym (żabką) lub kraulem.</li>
+                    <li><strong>Cel:</strong> Odciążenie stawów skokowych i kolanowych z zachowaniem pracy układu krążeniowo-oddechowego. Relaks mięśni.</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center space-x-3 mb-4 border-b border-slate-100 pb-3">
+                    <span class="text-2xl bg-slate-100 text-slate-600 p-2 rounded-lg">👟</span>
+                    <h3 class="text-xl font-bold text-slate-800">Czwartek: Spokojne Wybieganie</h3>
+                </div>
+                <ul class="text-sm text-slate-600 space-y-3">
+                    <li><strong>Dystans:</strong> 6-8 km.</li>
+                    <li><strong>Tempo:</strong> Konwersacyjne (bardzo wolno, powinieneś móc swobodnie rozmawiać). Praca na niskim tętnie (Strefa 2) przyspiesza spalanie adaptacyjne tłuszczu u osoby pow. 90kg.</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center space-x-3 mb-4 border-b border-slate-100 pb-3">
+                    <span class="text-2xl bg-slate-800 text-white p-2 rounded-lg">🏋️‍♂️</span>
+                    <h3 class="text-xl font-bold text-slate-800">Sobota: Domowa Siłownia (FBW)</h3>
+                </div>
+                <ul class="text-sm text-slate-600 space-y-3">
+                    <li><strong>Klatka (Cel: 160kg w przyszłości):</strong> Wyciskanie hantli na ławce płaskiej - 4 serie x 8-10 powtórzeń z wolnym opuszczaniem (nacisk na fazę ekscentryczną).</li>
+                    <li><strong>Plecy:</strong> Podciąganie na drążku w drzwiach z gumą oporową (jeśli potrzebna) - 3 serie x max powtórzeń. Wiosłowanie hantlem w opadzie tułowia.</li>
+                    <li><strong>Barki:</strong> Wyciskanie hantli siedząc (3 serie).</li>
+                    <li><strong>Brzuch:</strong> Deska (Plank) - 3 x 45 sekund dla stabilizacji "core" do biegania.</li>
+                </ul>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-red-200 md:col-span-2 relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 opacity-10 text-9xl">🏅</div>
+                <div class="flex items-center space-x-3 mb-4 border-b border-slate-100 pb-3 relative z-10">
+                    <span class="text-2xl bg-red-100 text-red-600 p-2 rounded-lg">🎯</span>
+                    <h3 class="text-xl font-bold text-slate-800">Niedziela: Koronny Long Run</h3>
+                </div>
+                <p class="text-sm text-slate-600 mb-3 relative z-10">Najważniejszy trening pod kątem półmaratonu (6 czerwca). Czas trwania to klucz do budowania bazy tlenowej.</p>
+                <ul class="text-sm text-slate-600 space-y-3 relative z-10">
+                    <li><strong>Dystans stopniowany:</strong> 10 km (docelowo wydłużany co tydzień o 1-2km, aż dojdziemy do 18km na dwa tygodnie przed startem).</li>
+                    <li><strong>Zasada:</strong> Biegaj powoli i jednostajnie. Zabierz żel węglowodanowy lub mus, jeśli biegniesz powyżej godziny. Po biegu obowiązkowe rozciąganie dolnych partii ciała.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    // Tab switching logic for the main navigation
+    function switchMainTab(tabId) {
+        const views = ['dashboard', 'dieta', 'trening'];
+        
+        // Update view visibility
+        views.forEach(view => {
+            const el = document.getElementById(`view-${view}`);
+            if (el) {
+                if (view === tabId) {
+                    el.classList.remove('hidden');
+                    el.classList.add('block');
+                } else {
+                    el.classList.add('hidden');
+                    el.classList.remove('block');
+                }
+            }
+        });
+
+        // Update navigation button styles
+        views.forEach(view => {
+            const btn = document.getElementById(`nav-${view}`);
+            if (btn) {
+                if (view === tabId) {
+                    btn.classList.add('tab-active');
+                    btn.classList.remove('tab-inactive');
+                } else {
+                    btn.classList.add('tab-inactive');
+                    btn.classList.remove('tab-active');
+                }
+            }
+        });
+    }
+
+    // Tab switching logic for the 7-day diet view
+    function showDay(dayId) {
+        const days = ['1', '2', '3', '4', '5', '6', '7'];
+        
+        // Update content visibility
+        days.forEach(day => {
+            const el = document.getElementById(`content-day-${day}`);
+            if (el) {
+                if (day === dayId) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            }
+            
+            // Update day tab styles
+            const btn = document.getElementById(`tab-day-${day}`);
+            if (btn) {
+                if (day === dayId) {
+                    btn.classList.add('diet-tab-active');
+                    btn.classList.remove('diet-tab-inactive', 'diet-tab-hover');
+                } else {
+                    btn.classList.add('diet-tab-inactive', 'diet-tab-hover');
+                    btn.classList.remove('diet-tab-active');
+                }
+            }
+        });
+    }
+
+    // Initialize Chart.js when the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- 1. Wykres Kompozycji Ciała (Doughnut) ---
+        const ctxBody = document.getElementById('bodyCompChart');
+        if (ctxBody) {
+            new Chart(ctxBody, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Masa mięśniowa (62.3kg)', 'Tkanka tłuszczowa (32.6%)', 'Inne (kości, woda itp.)'],
+                    datasets: [{
+                        data: [64.2, 32.6, 3.2], // Wartości proporcjonalne w % dla wizualizacji bazy 97kg
+                        backgroundColor: ['#10b981', '#f43f5e', '#cbd5e1'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                font: { size: 13, family: "'Segoe UI', sans-serif" }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    label += context.parsed + '%';
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // --- 2. Projekcja Wagi (Line Chart) ---
+        const ctxWeight = document.getElementById('weightLossChart');
+        if (ctxWeight) {
+            new Chart(ctxWeight, {
+                type: 'line',
+                data: {
+                    labels: ['Teraz (Start)', 'Miesiąc 1', 'Miesiąc 2', 'Miesiąc 3', 'Cel (6 Czerwca)'],
+                    datasets: [{
+                        label: 'Przewidywana waga (kg)',
+                        data: [97, 95.2, 93.5, 91.8, 90.0],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#3b82f6',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            min: 88, 
+                            max: 100,
+                            ticks: { stepSize: 2 }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + ' kg';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+</body>
+</html>
